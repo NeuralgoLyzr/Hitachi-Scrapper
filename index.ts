@@ -168,6 +168,24 @@ async function main() {
   const sheet = XLSX.utils.json_to_sheet(results);
   const newWorkbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(newWorkbook, sheet, "Analysts");
+  XLSX.utils.sheet_add_aoa(
+    sheet,
+    [
+      [
+        "First Name",
+        "Last Name",
+        "Title",
+        "Email ID",
+        "Area of Research Coverage",
+        "Geo",
+        "LinkedIn Profile",
+        "Analyst Firm HQ",
+        "Analyst Firm",
+        "Website",
+      ],
+    ],
+    { origin: "A1" },
+  );
   XLSX.writeFile(newWorkbook, "Hitachi-results.xlsx", { compression: true });
   console.log("Results written to Hitachi-results.xlsx");
 }
