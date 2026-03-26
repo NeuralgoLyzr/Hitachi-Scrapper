@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+pymongo
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+httpx
+requests
+pandas

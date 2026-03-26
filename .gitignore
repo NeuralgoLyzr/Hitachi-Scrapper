@@ -1,0 +1,60 @@
+# backend-fastapi — Python / FastAPI
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment & secrets (keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+
+# Build / packaging
+dist/
+build/
+*.manifest
+
+# Logs
+*.log
+logs/
+
+# Local databases (dev)
+*.db
+*.sqlite3
+
+# IDE & editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Test / coverage
+coverage/
+
+# Misc
+*.pem
+.cache/
