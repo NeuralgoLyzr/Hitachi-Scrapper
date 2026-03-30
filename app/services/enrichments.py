@@ -19,6 +19,7 @@ def extract_domain(url):
     parsed = urlparse(url)
     return parsed.netloc.replace("www.", "")
 
+
 def get_organizations_batch(job_id, owner_user_id, firms, batch_size=10):
     org_details = []
     domains = [extract_domain(firm) for firm in firms]
@@ -123,6 +124,7 @@ def get_organizations_batch(job_id, owner_user_id, firms, batch_size=10):
     )
     return org_details
 
+
 def check_linkedin_profile(url: str) -> dict:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -155,6 +157,7 @@ def check_linkedin_profile(url: str) -> dict:
             }
     except requests.exceptions.RequestException as e:
         return {"status": "error", "reason": str(e)}
+
 
 def search_people(organization_id, job_id):
     contacts = []
@@ -315,6 +318,58 @@ def _lyzr_post_with_retry(
     raise last_exc
 
 
+def _lyzr_stage1_post_until_valid_json(
+    *,
+    url: str,
+    headers: dict,
+    payload: dict,
+    timeout: float,
+    job_id: str,
+    log_label: str,
+) -> dict:
+    """POST stage-1; on invalid JSON in `response`, re-run the batch with a new session_id (same contacts)."""
+    max_parse_rounds = max(1, settings.lyzr_http_retries)
+    backoff = settings.lyzr_http_retry_backoff_seconds
+    agent_id = settings.lyzr_agent_research_domain_id
+    last_err: BaseException | None = None
+
+    for round_i in range(1, max_parse_rounds + 1):
+        if round_i > 1:
+            payload["session_id"] = f"{agent_id}-{uuid.uuid4().hex[:12]}"
+            time.sleep(backoff * (round_i - 1))
+        response = _lyzr_post_with_retry(
+            url,
+            headers=headers,
+            json_body=payload,
+            timeout=timeout,
+            job_id=job_id,
+            label=log_label if round_i == 1 else f"{log_label}_json_retry_{round_i}",
+        )
+        body = response.json()
+        raw = body.get("response")
+        try:
+            if isinstance(raw, dict):
+                return raw
+            if not isinstance(raw, str):
+                raise ValueError(f"unexpected response type {type(raw).__name__}")
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+            raise ValueError("top-level JSON must be an object")
+        except (json.JSONDecodeError, ValueError) as e:
+            last_err = e
+            logger.warning(
+                "lyzr stage1 parse failed job_id=%s label=%s round=%s/%s err=%s",
+                job_id,
+                log_label,
+                round_i,
+                max_parse_rounds,
+                e,
+            )
+    assert last_err is not None
+    raise last_err
+
+
 def _process_lyzr_batch_for_job(job_id: str, batch: list) -> None:
     """Stage 2: two Lyzr agent calls for up to 5 contacts, then merge and update Mongo."""
     timeout = settings.lyzr_http_timeout_seconds
@@ -347,79 +402,36 @@ def _process_lyzr_batch_for_job(job_id: str, batch: list) -> None:
             }
         )
 
-    payload_1 = {
+    payload = {
         "user_id": settings.lyzr_user_id,
         "agent_id": settings.lyzr_agent_research_domain_id,
         "session_id": f"{settings.lyzr_agent_research_domain_id}-{uuid.uuid4().hex[:12]}",
         "message": json.dumps(stage1_contacts),
     }
-    response_1 = _lyzr_post_with_retry(
-        LYZR_INFERENCE_URL,
+    stage_result = _lyzr_stage1_post_until_valid_json(
+        url=LYZR_INFERENCE_URL,
         headers=lyzr_headers,
-        json_body=payload_1,
+        payload=payload,
         timeout=timeout,
         job_id=job_id,
-        label="stage1_research_domain",
+        log_label="stage1_research_domain",
     )
-    stage1_result = json.loads(response_1.json()["response"])
-    if stage1_result["records"] == []:
-        response_1 = _lyzr_post_with_retry(
-            LYZR_INFERENCE_URL,
+
+    if stage_result["records"] == [] or False in [False for record in stage_result["records"] if not record.get("research_coverage")]:
+        stage_result = _lyzr_stage1_post_until_valid_json(
+            url=LYZR_INFERENCE_URL,
             headers=lyzr_headers,
-            json_body=payload_1,
+            payload=payload,
             timeout=timeout,
             job_id=job_id,
-            label="stage1_research_domain_retry",
+            log_label="stage1_research_domain_retry",
         )
-        stage1_result = json.loads(response_1.json()["response"])
 
-    payload_2 = {
-        "user_id": settings.lyzr_user_id,
-        "agent_id": settings.lyzr_industry_classification_agent_id,
-        "session_id": f"{settings.lyzr_industry_classification_agent_id}-{uuid.uuid4().hex[:12]}",
-        "message": json.dumps(stage1_result),
-    }
-    response_2 = _lyzr_post_with_retry(
-        LYZR_INFERENCE_URL,
-        headers=lyzr_headers,
-        json_body=payload_2,
-        timeout=timeout,
-        job_id=job_id,
-        label="stage2_industry",
-    )
-    stage2_result = json.loads(response_2.json()["response"])
-    if stage2_result["contacts"] == []:
-        response_2 = _lyzr_post_with_retry(
-            LYZR_INFERENCE_URL,
-            headers=lyzr_headers,
-            json_body=payload_2,
-            timeout=timeout,
-            job_id=job_id,
-            label="stage2_industry_retry",
-        )
-        stage2_result = json.loads(response_2.json()["response"])
+    stage1_records = stage_result.get("records", []) if isinstance(stage_result, dict) else []
 
-    stage1_records = stage1_result.get("records", []) if isinstance(stage1_result, dict) else []
-    stage2_contacts = stage2_result.get("contacts", []) if isinstance(stage2_result, dict) else []
-
-    industries_by_contact_id = {
-        str(item.get("contact_id")): item.get("mapped_industries", [])
-        for item in stage2_contacts
-        if item.get("contact_id") is not None
-    }
-
-    merged_result = {"records": []}
-    for record in stage1_records:
-        cid = str(record.get("contact_id"))
-        merged_result["records"].append(
-            {
-                **record,
-                "mapped_industries": industries_by_contact_id.get(cid, []),
-            }
-        )
         
     collection = get_collection("contacts")
-    for contact in merged_result["records"]:
+    for contact in stage1_records:
         collection.find_one_and_update(
             {"contact_id": contact["contact_id"], "job_id": job_id},
             {
@@ -433,9 +445,8 @@ def _process_lyzr_batch_for_job(job_id: str, batch: list) -> None:
     logger.info(
         "lyzr batch done job_id=%s updated_records=%s",
         job_id,
-        len(merged_result["records"]),
+        len(stage1_records),
     )
-
 
 
 def _persist_job_failure(job_id: str, owner_user_id: str, message: str) -> None:
@@ -454,6 +465,7 @@ def _persist_job_failure(job_id: str, owner_user_id: str, message: str) -> None:
         )
     except Exception:
         logger.exception("failed to persist job failure status job_id=%s", job_id)
+
 
 #----------------------------------Enrichment Task----------------------------------
 def run_enrichment_task(job_id, owner_user_id, body):
@@ -479,6 +491,7 @@ def run_enrichment_task(job_id, owner_user_id, body):
 def _remove_duplicate_people(people: list) -> list:
     """Remove duplicate people from the list based on their contact_id."""
     return [p for i, p in enumerate(people) if p not in people[i + 1:]]
+
 
 def _run_enrichment_task(job_id, owner_user_id, body):
     try:

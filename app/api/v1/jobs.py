@@ -4,7 +4,7 @@ from typing import Any
 
 from bson import ObjectId
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
-from pymongo import ReturnDocument
+from pydantic import BaseModel, Field
 
 from app.auth.deps import get_current_user
 from app.db.mongo import get_collection
@@ -15,6 +15,25 @@ from app.utils import normalize_doc
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+_CONTACT_AI_FIELDS = {
+    "_id": 0,
+    "contact_id": 1,
+    "firm_name": 1,
+    "firm_website_url": 1,
+    "first_name": 1,
+    "last_name": 1,
+    "linkedin_profile": 1,
+    "person_title": 1,
+    "official_email": 1,
+}
+
+
+class AiEnrichmentPayload(BaseModel):
+    job_id: str = Field(..., description="MongoDB job id")
+    contact_id: str | None = Field(
+        default=None,
+        description="When set, return only this contact for the job",
+    )
 
 
 @router.get("")
@@ -119,3 +138,32 @@ def get_job(job_id: str, current_user=Depends(get_current_user)):
     return {"success": True, "data": normalize_doc(row)}
 
 
+
+@router.post("/ai_enrichment")
+def ai_enrichment(
+    payload: AiEnrichmentPayload,
+    # current_user=Depends(get_current_user),
+):
+
+    contacts = get_collection("contacts")
+    cid = (payload.contact_id or "").strip() or None
+
+    if cid is not None:
+        row = contacts.find_one(
+            {"job_id": payload.job_id, "contact_id": cid},
+            _CONTACT_AI_FIELDS,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Contact not found")
+        return {"success": True, "data": [normalize_doc(row)], "total": 1}
+
+    flt = {
+        "job_id": payload.job_id,
+        "$or": [
+            {"research_coverage": ""},
+            {"research_coverage": None},
+        ],
+    }
+    cursor = contacts.find(flt, _CONTACT_AI_FIELDS)
+    rows = [normalize_doc(x) for x in cursor]
+    return {"success": True, "data": rows, "total": len(rows)}
