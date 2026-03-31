@@ -1,0 +1,64 @@
+{
+  "agent_name": "Enrichment Coordinator",
+  "agent_id": "69bd28bdc0b2697325ee8632",
+  "description": "Coordinates all LLM-based enrichment tasks - routes raw contact data to sub-agents for role filtering, industry classification, quality scoring, and company enrichment, then aggregates results into a final enriched dataset.",
+  "agent_type": "json",
+  "accessor": "result",
+  "auto_generated": true,
+  "response_schema": {
+    "status": "string",
+    "message": "string",
+    "result": {
+      "enriched_contacts": [
+        {
+          "name": "string",
+          "title": "string",
+          "email": "string",
+          "linkedin_url": "string",
+          "company": "string",
+          "company_description": "string",
+          "industry": "string",
+          "quality_score": "number",
+          "role_decision": "string",
+          "role_confidence": "number",
+          "location": "string"
+        }
+      ],
+      "total_input": "number",
+      "total_kept": "number",
+      "total_rejected": "number"
+    }
+  },
+  "example_response": {
+    "status": "sample string",
+    "message": "sample string",
+    "result": {
+      "enriched_contacts": [
+        {
+          "name": "sample string",
+          "title": "sample string",
+          "email": "sample string",
+          "linkedin_url": "sample string",
+          "company": "sample string",
+          "company_description": "sample string",
+          "industry": "sample string",
+          "quality_score": 0,
+          "role_decision": "sample string",
+          "role_confidence": 0,
+          "location": "sample string"
+        }
+      ],
+      "total_input": 0,
+      "total_kept": 0,
+      "total_rejected": 0
+    }
+  },
+  "has_module_outputs": true,
+  "module_outputs_example": {
+    "artifact_files": [
+      {
+        "file_url": "https://example.com/file.pdf"
+      }
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "agents": {
+    "enrichment_coordinator": {
+      "agent_id": "69bd28bdc0b2697325ee8632",
+      "name": "Enrichment Coordinator",
+      "type": "manager",
+      "file_output": true,
+      "managed_agents": [
+        "69bd28a68eca7a99b33e6fc5",
+        "69bd28a68defe4124560b47f",
+        "69bd28a725ae9f6487f329ec",
+        "69bd28a7fe8ea8e2385513ce"
+      ]
+    },
+    "role_filter_agent": {
+      "agent_id": "69bd28a68eca7a99b33e6fc5",
+      "name": "Role Filter Agent",
+      "type": "sub-agent"
+    },
+    "industry_classifier_agent": {
+      "agent_id": "69bd28a68defe4124560b47f",
+      "name": "Industry Classifier Agent",
+      "type": "sub-agent"
+    },
+    "quality_scorer_agent": {
+      "agent_id": "69bd28a725ae9f6487f329ec",
+      "name": "Quality Scorer Agent",
+      "type": "sub-agent"
+    },
+    "company_enrichment_agent": {
+      "agent_id": "69bd28a7fe8ea8e2385513ce",
+      "name": "Company Enrichment Agent",
+      "type": "sub-agent"
+    }
+  },
+  "database": {
+    "db_name": "app_contact-enrich-ultra-node-q6li",
+    "collections": ["jobs", "contacts_raw", "contacts_enriched"],
+    "schema": {
+      "jobs": {
+        "fields": ["filename", "status", "total_companies", "contacts_found", "contacts_filtered"],
+        "status_enum": ["queued", "processing", "completed", "failed"]
+      },
+      "contacts_raw": {
+        "fields": ["job_id", "name", "title", "email", "linkedin_url", "company", "domain", "location"]
+      },
+      "contacts_enriched": {
+        "fields": ["job_id", "name", "title", "email", "linkedin_url", "company", "company_description", "industry", "quality_score", "role_decision", "role_confidence", "location"],
+        "role_decision_enum": ["keep", "reject"]
+      }
+    }
+  },
+  "response_schemas": {
+    "enrichment_coordinator": "response_schemas/enrichment_coordinator_response.json",
+    "role_filter_agent": "response_schemas/role_filter_agent_response.json",
+    "industry_classifier_agent": "response_schemas/industry_classifier_agent_response.json",
+    "quality_scorer_agent": "response_schemas/quality_scorer_agent_response.json",
+    "company_enrichment_agent": "response_schemas/company_enrichment_agent_response.json"
+  }
+}

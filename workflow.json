@@ -1,0 +1,84 @@
+{
+  "workflow": {
+    "nodes": [
+      {"id": "input_node", "type": "Input", "label": "Raw Contact Data", "nodeCategory": "input"},
+      {"id": "manager_agent", "type": "Agent", "label": "Enrichment Coordinator Manager", "nodeCategory": "agent"},
+      {"id": "role_filter_agent", "type": "Agent", "label": "Role Filter Agent", "nodeCategory": "agent"},
+      {"id": "industry_classifier_agent", "type": "Agent", "label": "Industry Classifier Agent", "nodeCategory": "agent"},
+      {"id": "quality_scorer_agent", "type": "Agent", "label": "Quality Scorer Agent", "nodeCategory": "agent"},
+      {"id": "company_enrichment_agent", "type": "Agent", "label": "Company Enrichment Agent", "nodeCategory": "agent"},
+      {"id": "output_node", "type": "Output", "label": "Enriched Contact Dataset", "nodeCategory": "end"}
+    ],
+    "edges": [
+      {"source": "input_node", "target": "manager_agent"},
+      {"source": "manager_agent", "target": "role_filter_agent"},
+      {"source": "manager_agent", "target": "industry_classifier_agent"},
+      {"source": "manager_agent", "target": "quality_scorer_agent"},
+      {"source": "manager_agent", "target": "company_enrichment_agent"},
+      {"source": "manager_agent", "target": "output_node"}
+    ]
+  },
+  "agents": [
+    {
+      "node_id": "manager_agent",
+      "agent_id": "69bd28bdc0b2697325ee8632",
+      "name": "Enrichment Coordinator",
+      "type": "manager",
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "temperature": 0.2,
+      "top_p": 1,
+      "file_output": true,
+      "managed_agents": [
+        "69bd28a68eca7a99b33e6fc5",
+        "69bd28a68defe4124560b47f",
+        "69bd28a725ae9f6487f329ec",
+        "69bd28a7fe8ea8e2385513ce"
+      ]
+    },
+    {
+      "node_id": "role_filter_agent",
+      "agent_id": "69bd28a68eca7a99b33e6fc5",
+      "name": "Role Filter Agent",
+      "type": "sub-agent",
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "temperature": 0.1,
+      "top_p": 1
+    },
+    {
+      "node_id": "industry_classifier_agent",
+      "agent_id": "69bd28a68defe4124560b47f",
+      "name": "Industry Classifier Agent",
+      "type": "sub-agent",
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "temperature": 0.2,
+      "top_p": 1
+    },
+    {
+      "node_id": "quality_scorer_agent",
+      "agent_id": "69bd28a725ae9f6487f329ec",
+      "name": "Quality Scorer Agent",
+      "type": "sub-agent",
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "temperature": 0.1,
+      "top_p": 1
+    },
+    {
+      "node_id": "company_enrichment_agent",
+      "agent_id": "69bd28a7fe8ea8e2385513ce",
+      "name": "Company Enrichment Agent",
+      "type": "sub-agent",
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "temperature": 0.3,
+      "top_p": 0.95
+    }
+  ],
+  "database": {
+    "db_name": "app_contact-enrich-ultra-node-q6li",
+    "collections": ["jobs", "contacts_raw", "contacts_enriched"]
+  }
+}
