@@ -391,14 +391,14 @@ def _process_lyzr_batch_for_job(job_id: str, batch: list) -> None:
     for contact in batch:
         stage1_contacts.append(
             {
-                "contact_id": contact.get("contact_id"),
-                "firm_name": contact.get("firm_name"),
-                "firm_website_url": contact.get("firm_website_url"),
-                "first_name": contact.get("first_name"),
-                "last_name": contact.get("last_name"),
-                "linkedin_profile": contact.get("linkedin_profile"),
-                "person_title": contact.get("person_title"),
-                "official_email": contact.get("official_email"),
+                "contact_id": contact.get("contact_id",""),
+                "firm_name": contact.get("firm_name",""),
+                "firm_website_url": contact.get("firm_website_url",""),
+                "first_name": contact.get("first_name",""),
+                "last_name": contact.get("last_name",""),
+                "linkedin_profile": contact.get("linkedin_profile",""),
+                "person_title": contact.get("person_title",""),
+                "official_email": contact.get("official_email",""),
             }
         )
 
@@ -408,6 +408,7 @@ def _process_lyzr_batch_for_job(job_id: str, batch: list) -> None:
         "session_id": f"{settings.lyzr_agent_research_domain_id}-{uuid.uuid4().hex[:12]}",
         "message": json.dumps(stage1_contacts),
     }
+
     stage_result = _lyzr_stage1_post_until_valid_json(
         url=LYZR_INFERENCE_URL,
         headers=lyzr_headers,
@@ -447,6 +448,35 @@ def _process_lyzr_batch_for_job(job_id: str, batch: list) -> None:
         job_id,
         len(stage1_records),
     )
+
+
+def run_lyzr_batches_and_complete_job(job_id: str, owner_user_id: str, contacts: list) -> None:
+    """Run Lyzr in batches of up to 5 contacts (threaded), then set job status to completed."""
+    batches = [contacts[i : i + 5] for i in range(0, len(contacts), 5)]
+    logger.info(
+        "enrichment lyzr batches job_id=%s batch_count=%s concurrency=%s",
+        job_id,
+        len(batches),
+        min(settings.lyzr_batch_concurrency, len(batches)) if batches else 0,
+    )
+    if batches:
+        workers = min(settings.lyzr_batch_concurrency, len(batches))
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            list(ex.map(lambda b: _process_lyzr_batch_for_job(job_id, b), batches))
+
+    try:
+        jobs = get_collection("jobs")
+        jobs.find_one_and_update(
+            {"_id": ObjectId(job_id), "owner_user_id": owner_user_id},
+            {"$set": {"status": "completed", "updatedAt": datetime.now(timezone.utc).isoformat()}},
+            return_document=False,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update job for total contacts found: {str(e)}",
+        ) from e
+    logger.info("enrichment task completed job_id=%s contacts=%s", job_id, len(contacts))
 
 
 def _persist_job_failure(job_id: str, owner_user_id: str, message: str) -> None:
@@ -542,26 +572,4 @@ def _run_enrichment_task(job_id, owner_user_id, body):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update job for total contacts found: {str(e)}") from e
 
-    batches = [contacts_enriched[i : i + 5] for i in range(0, len(contacts_enriched), 5)]
-    logger.info(
-        "enrichment lyzr batches job_id=%s batch_count=%s concurrency=%s",
-        job_id,
-        len(batches),
-        min(settings.lyzr_batch_concurrency, len(batches)) if batches else 0,
-    )
-    if batches:
-        workers = min(settings.lyzr_batch_concurrency, len(batches))
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            list(ex.map(lambda b: _process_lyzr_batch_for_job(job_id, b), batches))
-
-    try:
-        jobs = get_collection("jobs")
-        jobs.find_one_and_update(
-            {"_id": ObjectId(job_id), "owner_user_id": owner_user_id},
-            {"$set": {"status": "completed", "updatedAt": datetime.now(timezone.utc).isoformat()}},
-            return_document=False
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update job for total contacts found: {str(e)}") from e
-
-    logger.info("enrichment task completed job_id=%s contacts=%s", job_id, len(contacts_enriched))
+    run_lyzr_batches_and_complete_job(job_id, owner_user_id, contacts_enriched)
