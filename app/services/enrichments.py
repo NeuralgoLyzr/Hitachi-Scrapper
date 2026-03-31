@@ -327,7 +327,12 @@ def _lyzr_stage1_post_until_valid_json(
     job_id: str,
     log_label: str,
 ) -> dict:
-    """POST stage-1; on invalid JSON in `response`, re-run the batch with a new session_id (same contacts)."""
+    """POST stage-1; on invalid JSON in `response`, re-run the batch (same contacts).
+
+    Each HTTP attempt uses a new ``session_id`` so internal parse retries and a second
+    top-level call (e.g. ``stage1_research_domain_retry``) never reuse a stale id from
+    a previous successful round or prior invocation on the same ``payload`` dict.
+    """
     max_parse_rounds = max(1, settings.lyzr_http_retries)
     backoff = settings.lyzr_http_retry_backoff_seconds
     agent_id = settings.lyzr_agent_research_domain_id
@@ -335,8 +340,8 @@ def _lyzr_stage1_post_until_valid_json(
 
     for round_i in range(1, max_parse_rounds + 1):
         if round_i > 1:
-            payload["session_id"] = f"{agent_id}-{uuid.uuid4().hex[:12]}"
             time.sleep(backoff * (round_i - 1))
+        payload["session_id"] = f"{agent_id}-{uuid.uuid4().hex[:12]}"
         response = _lyzr_post_with_retry(
             url,
             headers=headers,

@@ -121,3 +121,4 @@ app/
 - Set a strong `JWT_SECRET_KEY` and restrict `CORS_ORIGINS` to your real front-end origins.
 - Run with a production ASGI server (e.g. `uvicorn` behind a reverse proxy, or Gunicorn + Uvicorn workers).
 - Tune `LYZR_HTTP_TIMEOUT_SECONDS` and `LYZR_BATCH_CONCURRENCY` for your Lyzr plan and latency.
+
