@@ -173,7 +173,7 @@ def search_people(organization_id, job_id):
         payload = {
             "api_key": settings.apollo_api_key,
             "organization_ids": [organization_id],
-            "person_titles": ["analyst", "researcher", "research"],
+            "person_titles": ["editor", "correspondent", "journalist"],
             "page": page,
             "per_page": 10
         }
@@ -213,7 +213,7 @@ def search_people(organization_id, job_id):
             len(people),
         )
 
-        exclude_titles = ["data", "business", "compensation"]
+        exclude_titles = ["data", "business", "advertising", "marketing"]
         payload = {
             "api_key": settings.apollo_api_key,
             "details": [{"id": person["id"]} for person in people if not any(word in (person.get("title") or "").lower() for word in exclude_titles)],
