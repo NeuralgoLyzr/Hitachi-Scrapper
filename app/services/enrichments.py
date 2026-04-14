@@ -64,6 +64,7 @@ def get_organizations_batch(job_id, owner_user_id, firms, batch_size=10):
         try:
             data = r.json()
             orgs = data.get("organizations", []) if data.get("status") == "success" else []
+            orgs = [org for org in (orgs or []) if org is not None]
             orgs = [
                 {   
                     "id": org.get("id", ""),
